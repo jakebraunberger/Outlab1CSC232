@@ -1,46 +1,56 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-package huffman;
-
+Original code by,
+Robert Lafore. 2002.
+Data Structures and Algorithms in Java (2nd ed)
+Sams, Indianapolis, IN, US
+*/
+/*
+ * Modifying Authors: James Eaton
+ * Date: 
+ * Overview: Huffman tree
+*/
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Stack;
-
-
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 //////////////////////////////////////////////////////////////
 class Node {
-	public int iData;           // data item (key)
-	public double dData;        // data item
+	public int iData;           // frequency
+        public String Char;         // character
 	public Node leftChild;      // this Node's left child
 	public Node rightChild;     // this Node's right child
-        public String Char;
+
 	public void displayNode() { // display ourself
 		System.out.print('{');
-		System.out.print(iData);
+                System.out.print(Char); 
 		System.out.print(", ");
-		System.out.print(dData);
+		System.out.print(iData); 
 		System.out.print("} ");		
 	}
 } // end Class Node
 ////////////////////////////////////////////////////////////////
-
+class Table {
+    //code table class
+    public String Char;     // character
+    public String code;     // code
+    public Table next;      // next element of table
+}// end class
+////////////////////////////////////////////////////////////////
 class Tree {
-	private Node root;                 // first Node of Tree
-	
+	public Node root;                 // first Node of Tree
+	public Table start;                 // first node of table
+        
 	public Tree() {                    // constructor
 		root = null;                   // no nodes in tree yet
+                start = null;                   // no table yet
 	}
-        
-        public Tree(Node n)
-        {
-            root = n;
-        }
 	
 	
 	public Node find(int key) {      // find node with given key
@@ -59,12 +69,41 @@ class Tree {
 		}
 		return current;                         // found it
 	}  //end find()
-	
-	
-	public void insert(int id, double dd) {
+        
+        public void insertT(String Char, String code){
+            //inserts element into table
+            Table Temp = new Table();
+                Temp.Char = Char;
+                Temp.code = code;
+                
+            if(start == null){
+                start = Temp;
+            }else{
+                Table Temp2 = start;
+                while(Temp2.next != null){
+                    Temp2 = Temp2.next;
+                }
+                Temp2.next = Temp;
+            }
+        }//end insert
+	public String findChar(String code, String key) {
+            //goes through table to find code
+            Table Temp = start;
+            while (Temp != null){
+                if(Temp.Char.endsWith(key)){
+                    code = code.concat(Temp.code);
+                    return code;
+                }else{
+                    Temp = Temp.next;
+                }
+            }
+            return code;
+        }// end find char
+        
+	public void insert(int id, String cd) {
 		Node newNode = new Node();    // make new Node
 		newNode.iData = id;           // insert data
-		newNode.dData = dd;
+		newNode.Char = cd;
 		newNode.leftChild = null;
 		newNode.rightChild = null;
 		if(root == null) {            // no node in root
@@ -210,7 +249,7 @@ class Tree {
 			break;
 		case 3:
 			System.out.print("\nPostorder traversal: ");
-			postOrder(root);
+			postOrder(root,"");
 			break;
 		default:
 			System.out.print("Invalid traversal type\n");
@@ -238,11 +277,21 @@ class Tree {
 	}
 
 	
-	private void postOrder(Node localRoot) {
+	private void postOrder(Node localRoot, String code) {
+            //modified to go through the tree and set up/print out the table
 		if (localRoot != null) {
-			postOrder(localRoot.leftChild);
-			postOrder(localRoot.rightChild);
-			System.out.print(localRoot.iData + " ");		
+                        String codeL = code.concat("0");
+                        String codeR = code.concat("1");
+			postOrder(localRoot.leftChild, codeL);
+			postOrder(localRoot.rightChild, codeR);
+                        
+                        if ((localRoot.Char != null )){
+                                    System.out.print(" ");
+                                    System.out.print(localRoot.Char);
+                                    System.out.print(" = ");
+                                    System.out.println(code);
+                                    insertT(localRoot.Char, code);
+                        }
 		}
 	}
 
@@ -265,7 +314,7 @@ class Tree {
 			while (globalStack.isEmpty()==false) {
 				Node temp = (Node) globalStack.pop();
 				if (temp != null) {
-					System.out.print(temp.iData);
+					temp.displayNode();
 					localStack.push(temp.leftChild);
 					localStack.push(temp.rightChild);
 					if (temp.leftChild != null ||
@@ -290,7 +339,117 @@ class Tree {
 			} // end while isRowEmpty is false
 			System.out.println(
 			".................................................................");
-		} // end displayTree()
-	} // end class Tree
-}
+		}
+	}  // end displayTree()
+        public void displayCode(){
+            //prints out/builds vode table
+            System.out.println("................");
+          //System.out.println(" A = 0101010");
+            postOrder(root,"");
+            System.out.println(
+                               "................");
+        } // end displayCode
+
+        public String encode(Path input) {
+            //uses code table to encode input
+            String lineF = null;
+            String code = "";
+            int temp = 0;
+            //reads in file
+            try (BufferedReader reader = Files.newBufferedReader(input)){
+                String line = null;
+                while ((line = reader.readLine()) != null) {
+                    lineF = lineF.concat(line);
+                }
+            } catch (IOException ex) {
+                System.out.println("file not found");
+            }
+            //encodes file
+            while(temp < lineF.length()){
+                String key = String.valueOf(lineF.charAt(temp));
+                code = code.concat(findChar("", key));
+                
+                temp = temp+1;
+            }
+                //returns code as string
+                return code;
+        }// end encode
+        public String decode(String binary) {
+            //decodes input string of 1,0's
+            Node localRoot = root;
+            String Linef = "";
+            String code = null;
+            int temp = 0;
+                while(temp < binary.length()){
+                    code = String.valueOf(binary.charAt(temp));
+                    if(code.endsWith("0")){
+                        localRoot = localRoot.leftChild;
+                    }else{
+                        localRoot = localRoot.rightChild;
+                    }
+                    if(localRoot.Char != null){
+                        Linef = Linef.concat(localRoot.Char);
+                        localRoot = root;
+                    }
+                    
+                    temp = temp+1;
+                }
+            //returns decoded string        
+            return Linef;
+        }
+}// end class Tree
+////////////////////////////////////////////////////////////////
+
+class TreeApp {
+
+	public static void main(String[] args) throws IOException {
+                   //set up tree for testing
+		Tree theTree = new Tree();
+                Path fIn = Paths.get("input/asdf");
+		theTree.insert(50, null);
+		theTree.insert(25, null);
+		theTree.insert(75, null);
+		theTree.insert(1, "a");
+		theTree.insert(35, null);
+		theTree.insert(65, "b");
+		theTree.insert(85, "c");
+		theTree.insert(30, "d");
+		theTree.insert(45, null);
+		theTree.insert(40, "e");
+		theTree.insert(49, "f");
+                
+                //code needed once tree is set up (set up to be used in this order)
+                    // displays tree
+		theTree.displayTree();
+                    // displays and sets up code tree 
+                theTree.displayCode();
+                    // encodes message
+                String Encoded = theTree.encode(fIn); //replace quotes with path of input file
+                System.out.println(Encoded);
+                    // decodes message
+                String Decoded = theTree.decode(Encoded);
+                    // replace with output to file
+                System.out.println(Decoded);
+                
+                
+	} // end main()
+
+	
+	private static String getString() throws IOException {
+		InputStreamReader isr = new InputStreamReader(System.in);
+		BufferedReader br = new BufferedReader(isr);
+		String s = br.readLine();
+		return s;
+	}
+	
+	private static int getChar() throws IOException {
+		String s = getString();
+		return s.charAt(0);
+	}
+	
+	private static int getInt() throws IOException {
+		String s = getString();
+		return Integer.parseInt(s);
+	}	
+}  // end TreeApp class
 ////////////////////////////////////////////////////////////////
